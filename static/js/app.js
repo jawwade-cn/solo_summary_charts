@@ -23,7 +23,8 @@ let currentFilters = {
 // 分页数据
 let currentPage = 1;
 const pageSize = 20;
-let allData = [];
+let allTableData = [];
+let filteredTableData = [];
 
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -93,6 +94,10 @@ async function loadFilters() {
                 
                 startDate.value = `${filters['年份范围']['最小']}-01-01`;
                 endDate.value = `${filters['年份范围']['最大']}-12-31`;
+                
+                // 更新当前筛选条件
+                currentFilters.start_date = startDate.value;
+                currentFilters.end_date = endDate.value;
             }
         }
     } catch (error) {
@@ -100,18 +105,45 @@ async function loadFilters() {
     }
 }
 
+// 构建查询参数
+function buildQueryParams(extraParams = {}) {
+    const params = new URLSearchParams();
+    
+    if (currentFilters.start_date) {
+        params.append('start_date', currentFilters.start_date);
+    }
+    if (currentFilters.end_date) {
+        params.append('end_date', currentFilters.end_date);
+    }
+    if (currentFilters.trans_type) {
+        params.append('trans_type', currentFilters.trans_type);
+    }
+    params.append('trans_direction', currentFilters.trans_direction);
+    
+    // 添加额外参数
+    for (const [key, value] of Object.entries(extraParams)) {
+        params.append(key, value);
+    }
+    
+    return params;
+}
+
 // 加载所有数据
 async function loadAllData() {
     showLoading();
     
     try {
+        // 构建基础参数
+        const baseParams = buildQueryParams();
+        
         // 并行加载所有需要的数据
-        const [summaryResponse, timeSeriesResponse, transTypeResponse, payMethodResponse, counterpartyResponse] = await Promise.all([
-            fetch(`${API_BASE_URL}/summary`),
-            fetch(`${API_BASE_URL}/time-series?freq=${currentFilters.freq}`),
-            fetch(`${API_BASE_URL}/transaction-types`),
-            fetch(`${API_BASE_URL}/payment-methods`),
-            fetch(`${API_BASE_URL}/counterparties?top_n=20`)
+        const [summaryResponse, timeSeriesResponse, transTypeResponse, payMethodResponse, counterpartyResponse, tableDataResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/summary?${baseParams.toString()}`),
+            fetch(`${API_BASE_URL}/time-series?${buildQueryParams({freq: currentFilters.freq}).toString()}`),
+            fetch(`${API_BASE_URL}/transaction-types?${baseParams.toString()}`),
+            fetch(`${API_BASE_URL}/payment-methods?${baseParams.toString()}`),
+            fetch(`${API_BASE_URL}/counterparties?${buildQueryParams({top_n: 20}).toString()}`),
+            fetch(`${API_BASE_URL}/transactions?${baseParams.toString()}`)
         ]);
         
         const summaryResult = await summaryResponse.json();
@@ -119,6 +151,7 @@ async function loadAllData() {
         const transTypeResult = await transTypeResponse.json();
         const payMethodResult = await payMethodResponse.json();
         const counterpartyResult = await counterpartyResponse.json();
+        const tableDataResult = await tableDataResponse.json();
         
         // 更新指标卡片
         if (summaryResult.success) {
@@ -143,6 +176,14 @@ async function loadAllData() {
         // 更新交易对方图表
         if (counterpartyResult.success) {
             updateCounterpartyChart(counterpartyResult.data);
+        }
+        
+        // 更新表格数据
+        if (tableDataResult.success) {
+            allTableData = tableDataResult.data;
+            filteredTableData = [...allTableData];
+            currentPage = 1;
+            renderTable();
         }
         
     } catch (error) {
@@ -656,13 +697,15 @@ function updateCounterpartyChart(data) {
 }
 
 // 切换时间图表类型
-function switchTimeChartType(type) {
+function switchTimeChart(type) {
     currentTimeChartType = type;
     
     // 更新按钮状态
-    const buttons = document.querySelectorAll('.chart-header:nth-child(1) .chart-btn');
+    const chartContainer = document.getElementById('timeSeriesChart').closest('.chart-container');
+    const buttons = chartContainer.querySelectorAll('.chart-btn');
     buttons.forEach(btn => btn.classList.remove('active'));
     
+    // 根据类型找到对应的按钮并激活
     if (type === 'line') {
         buttons[0].classList.add('active');
     } else if (type === 'bar') {
@@ -671,16 +714,17 @@ function switchTimeChartType(type) {
         buttons[2].classList.add('active');
     }
     
-    // 重新加载数据并更新图表
+    // 重新加载时间序列数据
     loadTimeSeriesData();
 }
 
 // 切换交易对方图表类型
-function switchCounterpartyChartType(type) {
+function switchCounterpartyChart(type) {
     currentCounterpartyChartType = type;
     
     // 更新按钮状态
-    const buttons = document.querySelectorAll('.chart-header:nth-child(2) .chart-btn');
+    const chartContainer = document.getElementById('counterpartyChart').closest('.chart-container');
+    const buttons = chartContainer.querySelectorAll('.chart-btn');
     buttons.forEach(btn => btn.classList.remove('active'));
     
     if (type === 'count') {
@@ -689,7 +733,7 @@ function switchCounterpartyChartType(type) {
         buttons[1].classList.add('active');
     }
     
-    // 重新加载数据并更新图表
+    // 重新加载交易对方数据
     loadCounterpartyData();
 }
 
@@ -701,6 +745,7 @@ function applyFilters() {
     currentFilters.trans_direction = document.getElementById('transDirection').value;
     currentFilters.freq = document.getElementById('timeFreq').value;
     
+    console.log('应用筛选条件:', currentFilters);
     loadAllData();
 }
 
@@ -712,12 +757,7 @@ function refreshData() {
 // 加载时间序列数据
 async function loadTimeSeriesData() {
     try {
-        const params = new URLSearchParams();
-        params.append('freq', currentFilters.freq);
-        if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
-        if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
-        if (currentFilters.trans_type) params.append('trans_type', currentFilters.trans_type);
-        params.append('trans_direction', currentFilters.trans_direction);
+        const params = buildQueryParams({freq: currentFilters.freq});
         
         const response = await fetch(`${API_BASE_URL}/time-series?${params.toString()}`);
         const result = await response.json();
@@ -733,12 +773,9 @@ async function loadTimeSeriesData() {
 // 加载交易对方数据
 async function loadCounterpartyData() {
     try {
-        const params = new URLSearchParams();
-        params.append('top_n', 20);
-        if (currentFilters.start_date) params.append('start_date', currentFilters.start_date);
-        if (currentFilters.end_date) params.append('end_date', currentFilters.end_date);
-        if (currentFilters.trans_type) params.append('trans_type', currentFilters.trans_type);
-        params.append('trans_direction', currentFilters.trans_direction);
+        // 交易对方图表不需要重新加载数据，直接使用已有数据切换显示方式
+        // 但是为了保持一致性，我们仍然重新加载（如果有筛选条件的话）
+        const params = buildQueryParams({top_n: 20});
         
         const response = await fetch(`${API_BASE_URL}/counterparties?${params.toString()}`);
         const result = await response.json();
@@ -751,12 +788,162 @@ async function loadCounterpartyData() {
     }
 }
 
+// 渲染表格
+function renderTable() {
+    const tableBody = document.getElementById('dataTableBody');
+    const pagination = document.getElementById('pagination');
+    
+    if (filteredTableData.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="loading-text">暂无数据</td></tr>';
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    // 计算分页
+    const totalPages = Math.ceil(filteredTableData.length / pageSize);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const pageData = filteredTableData.slice(startIndex, endIndex);
+    
+    // 渲染表格数据
+    tableBody.innerHTML = pageData.map(item => `
+        <tr>
+            <td>${item['交易时间'] || '-'}</td>
+            <td>${item['交易类型'] || '-'}</td>
+            <td title="${item['交易对方'] || ''}">${item['交易对方'] || '-'}</td>
+            <td title="${item['商品'] || ''}">${item['商品'] || '-'}</td>
+            <td class="${item['收/支'] === '收入' ? 'income' : item['收/支'] === '支出' ? 'expense' : ''}">${item['收/支'] || '-'}</td>
+            <td class="${item['收/支'] === '收入' ? 'income' : item['收/支'] === '支出' ? 'expense' : ''}">${formatCurrency(item['金额(元)'])}</td>
+            <td>${item['支付方式'] || '-'}</td>
+            <td>${item['当前状态'] || '-'}</td>
+        </tr>
+    `).join('');
+    
+    // 渲染分页
+    let paginationHtml = '';
+    
+    // 上一页
+    paginationHtml += `<button class="pagination-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>上一页</button>`;
+    
+    // 页码按钮
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    if (startPage > 1) {
+        paginationHtml += `<button class="pagination-btn" onclick="goToPage(1)">1</button>`;
+        if (startPage > 2) {
+            paginationHtml += `<span class="pagination-info">...</span>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHtml += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHtml += `<span class="pagination-info">...</span>`;
+        }
+        paginationHtml += `<button class="pagination-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    }
+    
+    // 下一页
+    paginationHtml += `<button class="pagination-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>下一页</button>`;
+    
+    // 分页信息
+    paginationHtml += `<span class="pagination-info">第 ${currentPage} / ${totalPages} 页，共 ${filteredTableData.length} 条记录</span>`;
+    
+    pagination.innerHTML = paginationHtml;
+}
+
+// 跳转到指定页
+function goToPage(page) {
+    const totalPages = Math.ceil(filteredTableData.length / pageSize);
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    renderTable();
+}
+
+// 搜索功能
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        filteredTableData = [...allTableData];
+    } else {
+        filteredTableData = allTableData.filter(item => {
+            const counterparty = (item['交易对方'] || '').toLowerCase();
+            const product = (item['商品'] || '').toLowerCase();
+            const type = (item['交易类型'] || '').toLowerCase();
+            const remark = (item['备注'] || '').toLowerCase();
+            
+            return counterparty.includes(searchTerm) || 
+                   product.includes(searchTerm) || 
+                   type.includes(searchTerm) ||
+                   remark.includes(searchTerm);
+        });
+    }
+    
+    currentPage = 1;
+    renderTable();
+});
+
+// 导出数据
+function exportData() {
+    if (filteredTableData.length === 0) {
+        alert('没有数据可导出');
+        return;
+    }
+    
+    // 准备 CSV 内容
+    const headers = ['交易时间', '交易类型', '交易对方', '商品', '收/支', '金额(元)', '支付方式', '当前状态', '备注'];
+    
+    let csvContent = headers.join(',') + '\n';
+    
+    filteredTableData.forEach(item => {
+        const row = [
+            item['交易时间'] || '',
+            item['交易类型'] || '',
+            `"${(item['交易对方'] || '').replace(/"/g, '""')}"`,
+            `"${(item['商品'] || '').replace(/"/g, '""')}"`,
+            item['收/支'] || '',
+            item['金额(元)'] || 0,
+            item['支付方式'] || '',
+            item['当前状态'] || '',
+            `"${(item['备注'] || '').replace(/"/g, '""')}"`
+        ];
+        csvContent += row.join(',') + '\n';
+    });
+    
+    // 添加 BOM 以支持中文
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // 创建下载链接
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `交易数据_${dayjs().format('YYYYMMDD_HHmmss')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('数据导出成功！');
+}
+
 // 格式化货币
 function formatCurrency(value) {
     if (value === null || value === undefined || isNaN(value)) {
         return '¥0.00';
     }
-    return '¥' + value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '¥' + Number(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 // 格式化简短货币（用于图表）
@@ -766,7 +953,7 @@ function formatCurrencyShort(value) {
     } else if (value >= 1000) {
         return '¥' + (value / 1000).toFixed(1) + '千';
     }
-    return '¥' + value.toFixed(0);
+    return '¥' + Number(value).toFixed(0);
 }
 
 // 获取图表颜色
@@ -785,15 +972,3 @@ function getChartColor(index) {
     ];
     return colors[index % colors.length];
 }
-
-// 导出数据
-function exportData() {
-    alert('导出数据功能开发中...');
-}
-
-// 搜索功能
-document.getElementById('searchInput').addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    console.log('搜索:', searchTerm);
-    // TODO: 实现搜索过滤功能
-});

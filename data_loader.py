@@ -222,8 +222,14 @@ def get_transaction_type_data(df):
     result.sort(key=lambda x: x['交易笔数'], reverse=True)
     return result
 
-def get_counterparty_data(df, top_n=20):
-    """获取按交易对方分组的数据（前 N 个）"""
+def get_counterparty_data(df, top_n=50, sort_by='count'):
+    """获取按交易对方分组的数据（前 N 个）
+    
+    参数:
+        df: 数据框
+        top_n: 返回前 N 个
+        sort_by: 排序方式 ('count'=按交易笔数, 'amount'=按交易金额)
+    """
     if df.empty or '交易对方' not in df.columns:
         return []
     
@@ -235,17 +241,23 @@ def get_counterparty_data(df, top_n=20):
         if counterparty and counterparty != '/':  # 跳过空值和 '/'
             income = group[group['收/支'] == '收入']['金额(元)'].sum()
             expense = group[group['收/支'] == '支出']['金额(元)'].sum()
+            total_amount = abs(income) + abs(expense)
             
             result.append({
                 '交易对方': str(counterparty),
                 '总收入': float(income),
                 '总支出': float(expense),
                 '净收入': float(income - expense),
-                '交易笔数': int(len(group))
+                '交易笔数': int(len(group)),
+                '交易金额': float(total_amount)
             })
     
-    # 按交易笔数排序并取前 N 个
-    result.sort(key=lambda x: x['交易笔数'], reverse=True)
+    # 按指定方式排序
+    if sort_by == 'amount':
+        result.sort(key=lambda x: x['交易金额'], reverse=True)
+    else:
+        result.sort(key=lambda x: x['交易笔数'], reverse=True)
+    
     return result[:top_n]
 
 def get_payment_method_data(df):

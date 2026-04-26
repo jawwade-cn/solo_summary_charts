@@ -162,6 +162,54 @@ body::before {
     color: var(--text-color);
 }
 
+/* 日期输入框样式修复 */
+.filter-input[type="date"] {
+    position: relative;
+    padding-right: 40px;
+    cursor: pointer;
+}
+
+/* 日期选择器图标样式 */
+.filter-input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(0, 212, 255, 0.2);
+    border-radius: 4px;
+    padding: 5px;
+    cursor: pointer;
+    filter: invert(1) brightness(0.8);
+}
+
+.filter-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    background-color: rgba(0, 212, 255, 0.4);
+    filter: invert(1) brightness(1);
+}
+
+/* Firefox 日期选择器样式 */
+.filter-input[type="date"]::-moz-calendar-picker-indicator {
+    background-color: rgba(0, 212, 255, 0.2);
+    border-radius: 4px;
+    padding: 5px;
+    cursor: pointer;
+}
+
+/* Edge 日期选择器样式 */
+.filter-input[type="date"]::-ms-clear {
+    display: none;
+}
+
+.filter-input[type="date"]::-ms-reveal {
+    display: none;
+}
+
+/* 日期输入框聚焦时的样式 */
+.filter-input[type="date"]:focus::-webkit-calendar-picker-indicator {
+    background-color: rgba(0, 212, 255, 0.5);
+    filter: invert(1) brightness(1);
+}
+
 .filter-separator {
     color: var(--text-secondary);
 }

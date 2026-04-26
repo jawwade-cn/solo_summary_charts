@@ -335,3 +335,28 @@ def reload_data():
     _cached_df = None
     _cached_clean_df = None
     return get_cached_data()
+
+def get_transactions_list(df):
+    """
+    获取交易记录列表（用于表格展示）
+    
+    返回格式化后的交易数据列表
+    """
+    if df.empty:
+        return []
+    
+    # 选择需要的列
+    columns = ['交易时间', '交易类型', '交易对方', '商品', '收/支', '金额(元)', '支付方式', '当前状态', '备注']
+    available_columns = [col for col in columns if col in df.columns]
+    
+    # 复制数据并处理
+    result_df = df[available_columns].copy()
+    
+    # 格式化交易时间
+    if '交易时间' in result_df.columns:
+        result_df['交易时间'] = result_df['交易时间'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 转换为字典列表
+    result = result_df.to_dict('records')
+    
+    return result

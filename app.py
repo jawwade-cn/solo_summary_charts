@@ -8,6 +8,7 @@ from data_loader import (
     get_transaction_type_data,
     get_counterparty_data,
     get_payment_method_data,
+    get_transactions_list,
     filter_data
 )
 
@@ -163,6 +164,29 @@ def get_filters():
     return jsonify({
         'success': True,
         'data': filters
+    })
+
+@app.route('/api/transactions', methods=['GET'])
+def get_transactions():
+    """获取交易记录列表（用于表格展示）"""
+    global df
+    
+    # 获取过滤参数
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    trans_type = request.args.get('trans_type')
+    trans_direction = request.args.get('trans_direction', '全部')
+    
+    # 过滤数据
+    filtered_df = filter_data(df, start_date, end_date, trans_type, trans_direction)
+    
+    # 获取交易记录列表
+    transactions = get_transactions_list(filtered_df)
+    
+    return jsonify({
+        'success': True,
+        'data': transactions,
+        'total': len(transactions)
     })
 
 @app.route('/api/reload', methods=['POST'])

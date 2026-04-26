@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微信支付账单数据分析大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- 顶部标题栏 -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1>微信支付账单数据分析大屏</h1>
+                <div class="subtitle">实时交易数据多维度展示与分析</div>
+            </div>
+            <div class="header-right">
+                <div class="current-time" id="currentTime"></div>
+                <button class="refresh-btn" onclick="refreshData()">
+                    <span class="refresh-icon">🔄</span> 刷新数据
+                </button>
+            </div>
+        </header>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label>时间范围：</label>
+                <input type="date" id="startDate" class="filter-input">
+                <span class="filter-separator">至</span>
+                <input type="date" id="endDate" class="filter-input">
+            </div>
+            <div class="filter-group">
+                <label>交易类型：</label>
+                <select id="transType" class="filter-select">
+                    <option value="">全部</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>交易方向：</label>
+                <select id="transDirection" class="filter-select">
+                    <option value="全部">全部</option>
+                    <option value="收入">收入</option>
+                    <option value="支出">支出</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>时间维度：</label>
+                <select id="timeFreq" class="filter-select">
+                    <option value="D">按日</option>
+                    <option value="W">按周</option>
+                    <option value="M" selected>按月</option>
+                    <option value="Q">按季度</option>
+                    <option value="Y">按年</option>
+                </select>
+            </div>
+            <button class="apply-filter-btn" onclick="applyFilters()">
+                应用筛选
+            </button>
+        </div>
+
+        <!-- 关键指标卡片 -->
+        <div class="metrics-cards">
+            <div class="metric-card income-card">
+                <div class="metric-icon">💰</div>
+                <div class="metric-content">
+                    <div class="metric-label">总收入</div>
+                    <div class="metric-value" id="totalIncome">¥0.00</div>
+                    <div class="metric-change" id="incomeCount">0 笔</div>
+                </div>
+            </div>
+            <div class="metric-card expense-card">
+                <div class="metric-icon">💳</div>
+                <div class="metric-content">
+                    <div class="metric-label">总支出</div>
+                    <div class="metric-value" id="totalExpense">¥0.00</div>
+                    <div class="metric-change" id="expenseCount">0 笔</div>
+                </div>
+            </div>
+            <div class="metric-card net-card">
+                <div class="metric-icon">📊</div>
+                <div class="metric-content">
+                    <div class="metric-label">净收入</div>
+                    <div class="metric-value" id="netIncome">¥0.00</div>
+                    <div class="metric-change" id="netChange">0 笔</div>
+                </div>
+            </div>
+            <div class="metric-card total-card">
+                <div class="metric-icon">📈</div>
+                <div class="metric-content">
+                    <div class="metric-label">总交易笔数</div>
+                    <div class="metric-value" id="totalTransactions">0</div>
+                    <div class="metric-change" id="timeRange">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要图表区域 -->
+        <div class="main-charts">
+            <!-- 左侧图表区域 -->
+            <div class="chart-column left-column">
+                <!-- 时间趋势图 -->
+                <div class="chart-container large-chart">
+                    <div class="chart-header">
+                        <h3>📈 交易趋势分析</h3>
+                        <div class="chart-controls">
+                            <button class="chart-btn active" onclick="switchTimeChart('line')">折线图</button>
+                            <button class="chart-btn" onclick="switchTimeChart('bar')">柱状图</button>
+                            <button class="chart-btn" onclick="switchTimeChart('area')">面积图</button>
+                        </div>
+                    </div>
+                    <div class="chart-body">
+                        <div id="timeSeriesChart" class="chart"></div>
+                    </div>
+                </div>
+
+                <!-- 交易类型分布 -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>🏷️ 交易类型分布</h3>
+                    </div>
+                    <div class="chart-body">
+                        <div id="transactionTypeChart" class="chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧图表区域 -->
+            <div class="chart-column right-column">
+                <!-- 支付方式分布 -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>💳 支付方式分布</h3>
+                    </div>
+                    <div class="chart-body">
+                        <div id="paymentMethodChart" class="chart"></div>
+                    </div>
+                </div>
+
+                <!-- 交易对方排行 -->
+                <div class="chart-container large-chart">
+                    <div class="chart-header">
+                        <h3>👥 交易对方排行（TOP 20）</h3>
+                        <div class="chart-controls">
+                            <button class="chart-btn active" onclick="switchCounterpartyChart('count')">按笔数</button>
+                            <button class="chart-btn" onclick="switchCounterpartyChart('amount')">按金额</button>
+                        </div>
+                    </div>
+                    <div class="chart-body">
+                        <div id="counterpartyChart" class="chart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部数据表格 -->
+        <div class="data-table-section">
+            <div class="chart-header">
+                <h3>📋 详细交易数据</h3>
+                <div class="table-controls">
+                    <input type="text" id="searchInput" placeholder="搜索交易对方或商品..." class="search-input">
+                    <button class="export-btn" onclick="exportData()">
+                        <span class="export-icon">📥</span> 导出数据
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>交易时间</th>
+                            <th>交易类型</th>
+                            <th>交易对方</th>
+                            <th>商品</th>
+                            <th>收/支</th>
+                            <th>金额</th>
+                            <th>支付方式</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                        <tr>
+                            <td colspan="8" class="loading-text">数据加载中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination">
+                <!-- 分页控件 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">数据加载中，请稍候...</div>
+    </div>
+
+    <script src="static/js/app.js"></script>
+</body>
+</html>

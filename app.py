@@ -94,6 +94,7 @@ def get_counterparties():
     
     # 获取参数
     top_n = request.args.get('top_n', 20, type=int)
+    sort_by = request.args.get('sort_by', 'count')  # 'count' 或 'amount'
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     trans_type = request.args.get('trans_type')
@@ -103,7 +104,7 @@ def get_counterparties():
     filtered_df = filter_data(df, start_date, end_date, trans_type, trans_direction)
     
     # 获取交易对方数据
-    counterparty_data = get_counterparty_data(filtered_df, top_n)
+    counterparty_data = get_counterparty_data(filtered_df, top_n, sort_by)
     
     return jsonify({
         'success': True,
@@ -144,13 +145,17 @@ def get_filters():
     }
     
     if not df.empty:
-        # 获取所有交易类型
+        # 获取所有交易类型（过滤掉空值和 '/'）
         if '交易类型' in df.columns:
-            filters['交易类型'] = sorted(df['交易类型'].dropna().unique().tolist())
+            trans_types = df['交易类型'].dropna().unique().tolist()
+            # 过滤掉空字符串和 '/'
+            filters['交易类型'] = sorted([t for t in trans_types if t and t != '/' and str(t).strip()])
         
-        # 获取所有支付方式
+        # 获取所有支付方式（过滤掉空值和 '/'）
         if '支付方式' in df.columns:
-            filters['支付方式'] = sorted(df['支付方式'].dropna().unique().tolist())
+            pay_methods = df['支付方式'].dropna().unique().tolist()
+            # 过滤掉空字符串和 '/'
+            filters['支付方式'] = sorted([p for p in pay_methods if p and p != '/' and str(p).strip()])
         
         # 获取年份范围
         if '交易时间' in df.columns:

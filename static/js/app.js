@@ -136,13 +136,16 @@ async function loadAllData() {
         // 构建基础参数
         const baseParams = buildQueryParams();
         
+        // 根据当前排序类型构建交易对方参数
+        const counterpartySortBy = currentCounterpartyChartType === 'amount' ? 'amount' : 'count';
+        
         // 并行加载所有需要的数据
         const [summaryResponse, timeSeriesResponse, transTypeResponse, payMethodResponse, counterpartyResponse, tableDataResponse] = await Promise.all([
             fetch(`${API_BASE_URL}/summary?${baseParams.toString()}`),
             fetch(`${API_BASE_URL}/time-series?${buildQueryParams({freq: currentFilters.freq}).toString()}`),
             fetch(`${API_BASE_URL}/transaction-types?${baseParams.toString()}`),
             fetch(`${API_BASE_URL}/payment-methods?${baseParams.toString()}`),
-            fetch(`${API_BASE_URL}/counterparties?${buildQueryParams({top_n: 20}).toString()}`),
+            fetch(`${API_BASE_URL}/counterparties?${buildQueryParams({top_n: 20, sort_by: counterpartySortBy}).toString()}`),
             fetch(`${API_BASE_URL}/transactions?${baseParams.toString()}`)
         ]);
         
@@ -619,7 +622,8 @@ function updateCounterpartyChart(data) {
         values = reversedData.map(item => item['交易笔数']);
         label = '交易笔数';
     } else {
-        values = reversedData.map(item => Math.abs(item['总支出'] + item['总收入']));
+        // 使用后端返回的交易金额字段（已经计算好：abs(收入) + abs(支出)）
+        values = reversedData.map(item => item['交易金额'] || Math.abs(item['总支出']) + Math.abs(item['总收入']));
         label = '交易金额';
     }
     
@@ -773,9 +777,9 @@ async function loadTimeSeriesData() {
 // 加载交易对方数据
 async function loadCounterpartyData() {
     try {
-        // 交易对方图表不需要重新加载数据，直接使用已有数据切换显示方式
-        // 但是为了保持一致性，我们仍然重新加载（如果有筛选条件的话）
-        const params = buildQueryParams({top_n: 20});
+        // 根据当前排序类型传递参数
+        const sortBy = currentCounterpartyChartType === 'amount' ? 'amount' : 'count';
+        const params = buildQueryParams({top_n: 20, sort_by: sortBy});
         
         const response = await fetch(`${API_BASE_URL}/counterparties?${params.toString()}`);
         const result = await response.json();
